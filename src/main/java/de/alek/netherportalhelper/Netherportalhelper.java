@@ -121,7 +121,7 @@ public class Netherportalhelper implements ClientModInitializer {
                         try {
                             PortalManager.unlock();
                             client.player.sendOverlayMessage(Component.translatable("msg.netherportalhelper.unlocked")
-                                    .withStyle(ChatFormatting.RED));
+                                    .withStyle(ChatFormatting.GRAY));
                         } catch (IOException exception) {
                             reportSaveFailure(client, exception);
                         }

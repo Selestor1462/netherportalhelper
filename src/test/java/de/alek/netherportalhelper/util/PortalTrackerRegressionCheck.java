@@ -42,6 +42,7 @@ public final class PortalTrackerRegressionCheck {
         checkCompassFrameRateIndependence();
         checkCompassWraparound();
         checkCompassSmoothingEndpoints();
+        CompassLayoutRegressionCheck.run();
         checkCompactPanelUsesOnlyVisibleContent();
         checkNavigationLifecycle();
         checkTargetPersistenceAndIsolation();
@@ -82,6 +83,9 @@ public final class PortalTrackerRegressionCheck {
         assert config.compassCenterY == 400;
         assert config.hudAnchor == ModConfig.HudAnchor.TOP_LEFT;
         assert config.hudLayout == ModConfig.HudLayout.COMPACT;
+        assert !config.showCurrentPosition : "New and legacy configurations start with a target-only HUD";
+        config.showCurrentPosition = true;
+        assert config.copy().showCurrentPosition : "Saving a settings draft must retain the position option";
     }
 
     private static void checkOverlayAnchorsAndFitting() {
@@ -197,11 +201,11 @@ public final class PortalTrackerRegressionCheck {
     }
 
     private static void checkCompactPanelUsesOnlyVisibleContent() {
-        PanelLayout.Size compact = PanelLayout.measure(80, 60, 180, 400, 500, false);
-        PanelLayout.Size detailed = PanelLayout.measure(80, 60, 180, 400, 500, true);
+        PanelLayout.Size compact = PanelLayout.measure(80, 180, 400, false, false);
+        PanelLayout.Size detailed = PanelLayout.measure(80, 180, 400, true, true);
         assert compact.width() < detailed.width() : "Hidden hints must not widen the compact panel";
         assert compact.height() < detailed.height() : "Compact mode must reclaim the hint area";
-        assert compact.width() >= 180 + 26 + 14 : "Coordinate icons and padding must still fit";
+        assert compact.width() >= 180 + 32 : "Coordinate icons and padding must still fit";
     }
 
     private static void checkNavigationLifecycle() {

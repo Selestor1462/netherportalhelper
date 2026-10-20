@@ -2,6 +2,7 @@ package de.alek.netherportalhelper.render;
 
 import de.alek.netherportalhelper.config.ConfigManager;
 import de.alek.netherportalhelper.config.ModConfig;
+import de.alek.netherportalhelper.screen.PortalMenuScreen;
 import de.alek.netherportalhelper.util.PortalWorldAccess;
 import de.alek.netherportalhelper.util.PortalTarget;
 import de.alek.netherportalhelper.util.PortalTracker;
@@ -41,7 +42,7 @@ public final class PortalWorldRenderer {
         state.setData(PREVIEW, null);
         Minecraft client = Minecraft.getInstance();
         ModConfig config = ConfigManager.get();
-        if (!config.hudVisible || client.gui.hud.isHidden() || !PortalTracker.isActive()
+        if (!config.hudVisible || client.gui.hud.isHidden() || client.gui.screen() instanceof PortalMenuScreen || !PortalTracker.isActive()
                 || (!config.showTargetMarker && !config.showFramePreview)) return;
 
         PortalTarget target = PortalTracker.getTarget();

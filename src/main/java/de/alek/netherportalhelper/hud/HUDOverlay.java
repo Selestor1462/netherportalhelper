@@ -3,6 +3,7 @@ package de.alek.netherportalhelper.hud;
 import de.alek.netherportalhelper.Netherportalhelper;
 import de.alek.netherportalhelper.config.ConfigManager;
 import de.alek.netherportalhelper.config.ModConfig;
+import de.alek.netherportalhelper.screen.PortalMenuScreen;
 import de.alek.netherportalhelper.util.PortalTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -15,8 +16,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 
 public final class HUDOverlay {
@@ -50,7 +49,8 @@ public final class HUDOverlay {
         if (!config.hudVisible) return;
 
         Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.level == null) return;
+        if (client.player == null || client.level == null || client.gui.hud.isHidden()
+                || client.gui.screen() instanceof PortalMenuScreen) return;
         BlockPos playerPos = client.player.blockPosition();
         ResourceKey<Level> currentDimension = client.level.dimension();
         if (!PortalTracker.isPortalDimension(currentDimension)) return;
@@ -122,69 +122,61 @@ public final class HUDOverlay {
         var savedTarget = preview ? null : PortalTracker.getTarget();
         Component title = locked && savedTarget != null ? Component.literal(savedTarget.name())
                 : Component.translatable("hud.netherportalhelper.title");
-        Component status = Component.translatable(locked ? "hud.netherportalhelper.locked" : "hud.netherportalhelper.ready");
-        Component currentLine = coordinateLine(currentDimension, current);
-        Component targetLine = coordinateLine(targetDimension, target);
-        if (savedTarget != null && savedTarget.buildY() != null) {
-            targetLine = targetLine.copy().append(Component.translatable("hud.netherportalhelper.reference_y",
-                    Integer.toString(savedTarget.calculatedDestination().getY())));
-        }
+        boolean showPosition = config.showCurrentPosition;
+        Component positionLabel = rowLabel("position_label", currentDimension);
+        Component targetLabel = rowLabel("target_label", targetDimension);
+        Component currentLine = coordinateLine(current);
+        Component targetLine = coordinateLine(target);
         Component lockHint = hint(locked ? "hud.netherportalhelper.unlock_hint" : "hud.netherportalhelper.lock_hint",
                 Netherportalhelper.getFreezeKeyName());
-        Component visibilityHint = hint("hud.netherportalhelper.hide_hint", Netherportalhelper.getHideKeyName());
-        Component plannerHint = hint("key.netherportalhelper.planner", Netherportalhelper.getPlannerKeyName());
-        Component reference = Component.translatable("hud.netherportalhelper.reference");
-        Component linkNotice = Component.translatable("hud.netherportalhelper.link_notice");
-
-        int padding = 7;
-        int iconAndGap = 26;
-        int rowY = 27;
-        int separatorY = 66;
-        int hintsY = 72;
-        boolean showHints = config.hudLayout == ModConfig.HudLayout.DETAILED
+        boolean showHint = !locked || config.hudLayout == ModConfig.HudLayout.DETAILED
                 || (!preview && System.currentTimeMillis() < hintsUntilMillis);
-        PanelLayout.Size size = PanelLayout.measure(font.width(title), font.width(status),
-                Math.max(font.width(currentLine), font.width(targetLine)),
-                Math.max(font.width(plannerHint), Math.max(font.width(lockHint), font.width(visibilityHint))),
-                Math.max(font.width(reference), font.width(linkNotice)), showHints);
+        int rowWidth = Math.max(font.width(targetLabel), font.width(targetLine));
+        if (showPosition) rowWidth = Math.max(rowWidth, Math.max(font.width(positionLabel), font.width(currentLine)));
+        PanelLayout.Size size = PanelLayout.measure(font.width(title), rowWidth,
+                font.width(lockHint), showPosition, showHint);
         int width = size.width();
         int height = size.height();
-
         OverlayLayout.Placement placement = OverlayLayout.place(screenWidth, screenHeight, width, height,
                 config.hudPanelX, config.hudPanelY, config.hudScale, config.hudAnchor);
         context.pose().pushMatrix();
         context.pose().translate(placement.x(), placement.y());
         context.pose().scale(placement.scale(), placement.scale());
-
         int background = withAlpha(0x151515, config.backgroundOpacity);
         int border = withAlpha(0x555555, Math.min(1.0f, config.backgroundOpacity + 0.3f));
-        int accent = dimensionColor(currentDimension);
         context.fill(0, 0, width, height, background);
         context.fill(0, 0, width, 1, border);
         context.fill(0, height - 1, width, height, border);
         context.fill(0, 0, 1, height, border);
         context.fill(width - 1, 0, width, height, border);
-        context.fill(1, 1, 3, height - 1, accent);
-
-        context.text(font, title, padding + 2, 6, WHITE, false);
-        int statusWidth = font.width(status);
-        context.fill(width - padding - statusWidth - 8, 5,
-                width - padding, 19, withAlpha(locked ? 0x1B3820 : 0x282828, 1.0f));
-        context.text(font, status, width - padding - statusWidth - 4, 8, locked ? 0xFF82C878 : MUTED, false);
-
-        context.item(dimensionIcon(currentDimension), padding, rowY);
-        context.item(dimensionIcon(targetDimension), padding, rowY + 19);
-        context.text(font, currentLine, padding + iconAndGap, rowY + 4, WHITE, false);
-        context.text(font, targetLine, padding + iconAndGap, rowY + 23, locked ? 0xFF82C878 : MUTED, false);
-        if (showHints) {
-            context.fill(padding, separatorY, width - padding, separatorY + 1, border);
-            context.text(font, lockHint, padding + 2, hintsY, MUTED, false);
-            context.text(font, visibilityHint, padding + 2, hintsY + 13, MUTED, false);
-            context.text(font, plannerHint, padding + 2, hintsY + 26, MUTED, false);
-            context.text(font, reference, padding + 2, hintsY + 41, MUTED, false);
-            context.text(font, linkNotice, padding + 2, hintsY + 54, MUTED, false);
+        context.fill(1, 1, 3, height - 1, locked ? 0xFF82C878 : dimensionColor(targetDimension));
+        context.text(font, title, 8, 6, WHITE, true);
+        int rowY = 21;
+        if (showPosition) {
+            drawCoordinateRow(context, font, currentDimension, positionLabel, currentLine, rowY, MUTED);
+            rowY += 26;
         }
+        drawCoordinateRow(context, font, targetDimension, targetLabel, targetLine, rowY,
+                locked ? 0xFF82C878 : WHITE);
+        if (showHint) context.text(font, lockHint, 8, rowY + 27, MUTED, true);
         context.pose().popMatrix();
+    }
+
+    private static Component rowLabel(String key, ResourceKey<Level> dimension) {
+        return Component.translatable("hud.netherportalhelper." + key,
+                Component.translatable(dimension == Level.NETHER
+                        ? "hud.netherportalhelper.dim_nether" : "hud.netherportalhelper.dim_overworld"));
+    }
+
+    private static void drawCoordinateRow(GuiGraphicsExtractor context, Font font, ResourceKey<Level> dimension,
+                                           Component label, Component coordinates, int rowY, int color) {
+        context.pose().pushMatrix();
+        context.pose().translate(7, rowY + 3);
+        context.pose().scale(0.75f, 0.75f);
+        context.item(dimensionIcon(dimension), 0, 0);
+        context.pose().popMatrix();
+        context.text(font, label, 24, rowY, color, true);
+        context.text(font, coordinates, 24, rowY + 11, color, true);
     }
 
     private static void renderCompass(GuiGraphicsExtractor context, Font font, ModConfig config,
@@ -220,55 +212,24 @@ public final class HUDOverlay {
         float difference = (preview ? PREVIEW_SMOOTHER : COMPASS_SMOOTHER)
                 .update(rawDifference, config.compassSmoothing, elapsed);
 
-        List<Component> lines = new ArrayList<>(3);
-        if (onTarget) {
-            lines.add(Component.translatable("hud.netherportalhelper.arrived"));
-        } else {
-            lines.add(Component.translatable("hud.netherportalhelper.distance",
-                    Component.literal(String.format(Locale.ROOT, "%.1f", distance))));
-            if (config.showTurnAroundHint && Math.abs(difference) >= config.compassBackzoneDegrees) {
-                lines.add(Component.translatable("hud.netherportalhelper.turn_around"));
-            }
-        }
+        Component distanceLine = onTarget ? Component.translatable("hud.netherportalhelper.arrived")
+                : Component.translatable("hud.netherportalhelper.distance",
+                        String.format(Locale.ROOT, distance < 100 ? "%.1f" : "%.0f", distance));
         if (config.showYLevelIndicator && Math.abs(dy) > 3) {
-            lines.add(Component.translatable(dy > 0 ? "hud.netherportalhelper.y_above" : "hud.netherportalhelper.y_below",
-                    Component.literal(Integer.toString(Math.abs(dy)))));
+            Component heightHint = Component.translatable(dy > 0
+                    ? "hud.netherportalhelper.height_above_short" : "hud.netherportalhelper.height_below_short", Math.abs(dy));
+            distanceLine = Component.translatable("hud.netherportalhelper.distance_height", distanceLine, heightHint);
         }
-
-        float arrowScale = config.compassArrowScale;
-        float maxLineScale = config.compassTextScale;
-        float checkScale = 1.0f;
-        int maxLineWidth = lines.stream().mapToInt(font::width).max().orElse(0);
-        float availableTextWidth = Math.max(0.0f, screenWidth - 32.0f);
-        if (maxLineWidth > 0) maxLineScale = Math.min(maxLineScale, availableTextWidth / maxLineWidth);
-        int arrowGlyphWidth = Math.max(1, font.width(Component.literal("⬆")));
-        arrowScale = Math.min(arrowScale, availableTextWidth / arrowGlyphWidth);
-
-        int preferredContentHeight = (onTarget ? 20 : Math.round(font.lineHeight * arrowScale))
-                + (lines.isEmpty() ? 0 : 5 + Math.round(lines.size() * (font.lineHeight + 2) * maxLineScale));
-        int availableContentHeight = Math.max(0, screenHeight - 20);
-        if (preferredContentHeight > availableContentHeight && preferredContentHeight > 0) {
-            float fit = availableContentHeight / (float) preferredContentHeight;
-            arrowScale *= fit;
-            maxLineScale *= fit;
-            checkScale *= fit;
-        }
-
-        int arrowHeight = onTarget ? Math.round(20 * checkScale) : Math.round(font.lineHeight * arrowScale);
-        int contentHeight = arrowHeight + (lines.isEmpty() ? 0 : 5 + Math.round(lines.size() * (font.lineHeight + 2) * maxLineScale));
-        int arrowWidth = onTarget ? Math.round(18 * checkScale)
-                : Math.round(font.width(Component.literal("⬆")) * arrowScale);
-        int panelWidth = Math.max(1, Math.min(Math.max(1, screenWidth - 8),
-                Math.max(arrowWidth, Math.round(maxLineWidth * maxLineScale)) + 24));
-        int panelHeight = contentHeight + 12;
-        int centerX = screenWidth / 2;
-        int leftMargin = Math.min(4, Math.max(0, (screenWidth - panelWidth) / 2));
-        int x1 = Math.max(leftMargin, Math.min(screenWidth - panelWidth - leftMargin, centerX - panelWidth / 2));
-        int x2 = x1 + panelWidth;
-        int topMargin = Math.min(4, Math.max(0, (screenHeight - panelHeight) / 2));
-        int y1 = Math.max(topMargin, Math.min(screenHeight - panelHeight - topMargin,
-                config.compassCenterY - panelHeight / 2));
-        int y2 = y1 + panelHeight;
+        Component turnHint = Component.translatable("hud.netherportalhelper.turn_around");
+        boolean turnAround = !onTarget && config.showTurnAroundHint
+                && Math.abs(difference) >= config.compassBackzoneDegrees;
+        // Always reserve the optional hint: turning around must not resize or shift the panel.
+        int textWidth = Math.max(font.width(distanceLine), config.showTurnAroundHint ? font.width(turnHint) : 0);
+        CompassLayout.Placement layout = CompassLayout.calculate(screenWidth, screenHeight, config.compassCenterY,
+                Math.max(1, font.width(Component.literal("⬆"))), font.lineHeight, config.compassArrowScale,
+                font.lineHeight, textWidth, config.compassTextScale);
+        int x1 = layout.x(), y1 = layout.y();
+        int x2 = x1 + layout.width(), y2 = y1 + layout.height();
         int background = withAlpha(0x151515, config.backgroundOpacity);
         int border = withAlpha(0x555555, Math.min(1.0f, config.backgroundOpacity + 0.3f));
         context.fill(x1, y1, x2, y2, background);
@@ -276,29 +237,21 @@ public final class HUDOverlay {
         context.fill(x1, y2 - 1, x2, y2, border);
         context.fill(x1, y1, x1 + 1, y2, border);
         context.fill(x2 - 1, y1, x2, y2, border);
-
         if (onTarget) {
-            drawCheck(context, centerX, y1 + 4, checkScale);
+            float checkScale = layout.arrowScale() / 2.0f;
+            drawCheck(context, layout.centerX(), layout.arrowCenterY() - Math.round(9 * checkScale), checkScale);
         } else {
-            drawCenteredRotatedText(context, font, Component.literal("⬆"), centerX, y1 + 4,
-                    blendArrowColor(Math.abs(difference) / 180.0f), arrowScale, difference);
+            drawCenteredRotatedText(context, font, Component.literal("⬆"), layout.centerX(), layout.arrowCenterY(),
+                    blendArrowColor(Math.abs(difference) / 180.0f), layout.arrowScale(), difference);
         }
-        int lineY = y1 + 6 + arrowHeight;
-        for (int i = 0; i < lines.size(); i++) {
-            int color = lines.get(i).getString().equals(Component.translatable("hud.netherportalhelper.turn_around").getString())
-                    ? 0xFFE89A78 : WHITE;
-            drawCenteredText(context, font, lines.get(i), centerX, lineY, color, maxLineScale);
-            lineY += Math.round((font.lineHeight + 2) * maxLineScale);
-        }
+        drawCenteredText(context, font, distanceLine, layout.centerX(), layout.textY(), WHITE, layout.textScale());
+        if (turnAround) drawCenteredText(context, font, turnHint, layout.centerX(),
+                layout.textY() + layout.lineStep(), 0xFFE89A78, layout.textScale());
     }
 
-    private static Component coordinateLine(ResourceKey<Level> dimension, BlockPos position) {
-        Component name = Component.translatable(dimension == Level.NETHER
-                ? "hud.netherportalhelper.dim_nether" : "hud.netherportalhelper.dim_overworld");
-        return Component.translatable("hud.netherportalhelper.coordinates", name,
-                Component.literal(Integer.toString(position.getX())),
-                Component.literal(Integer.toString(position.getY())),
-                Component.literal(Integer.toString(position.getZ())));
+    private static Component coordinateLine(BlockPos position) {
+        return Component.translatable("hud.netherportalhelper.compact_coordinates",
+                position.getX(), position.getY(), position.getZ());
     }
 
     private static Component hint(String translationKey, String keyName) {

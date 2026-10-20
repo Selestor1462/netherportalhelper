@@ -17,11 +17,11 @@ A client-side Fabric portal planner with saved portal pairs, coordinate conversi
 
 ## Portal planner
 
-Press **O** in a world to manage named portal pairs, or open the planner from the mod settings. A brief HUD hint shows the current planner key when you join or change navigation. Capture an aimed Nether portal to record its lower interior corner and opening axis. With no portal under the crosshair, capture uses your feet position. Saved pairs can be selected for navigation, renamed, deleted or edited with a separate construction Y and X/Z opening axis. Deactivating navigation keeps the pair in the list.
+Press **O** in a world to manage named portal pairs, or open the planner from the mod settings. The saved-pair list sits beside the selected pair's build details on wide screens and directly above them on narrow screens. Capture an aimed Nether portal to record its lower interior corner and opening axis. With no portal under the crosshair, capture uses your feet position. Saved pairs can be selected for navigation, renamed, deleted or edited with a separate construction Y and X/Z opening axis. Stopping navigation keeps the pair in the list.
 
 Manual entry and clipboard paste accept an explicit source dimension followed by integer X Y Z, for example `overworld 120 72 -48` or `nether -15 128 40`. Commas and semicolons also work between values. Copy exports the source coordinates in this format. Pasting fills the editor; it does not send a chat message or run a command.
 
-Leave construction Y empty to use the original reference height. Setting it changes the building target without losing the source or calculated reference Y; both are shown in the planner, and the HUD shows the reference beside an overridden target height.
+Leave construction Y empty to use the original reference height. Setting it changes the building target without losing the source or calculated reference Y. Both are shown in the planner; the HUD displays the chosen building target.
 
 The planner also offers **Target marker** and **Frame preview** switches, both off by default. The marker appears within 256 blocks; the transparent minimal 4×5 frame appears within 48 blocks. It uses the destination's lower-left interior block as its anchor and follows the selected X/Z opening axis and construction height. Guides respect terrain depth, loaded chunks, the world border, build height and HUD visibility. They never place blocks or load chunks.
 
@@ -29,13 +29,13 @@ The planner also offers **Target marker** and **Frame preview** switches, both o
 
 With [Mod Menu](https://modrinth.com/mod/modmenu) installed, open Nether Portal Helper's settings from the Mods screen. Adjust HUD placement, scale and background, choose a compact or detailed layout, and tune the compass. Changes are previewed before saving. Mod Menu is optional; settings can also be edited in `config/netherportalhelper.json`.
 
-In compact mode, key hints appear briefly after joining a world, changing the HUD, or locking a portal target. Detailed mode keeps them visible.
+The compact HUD shows the target dimension and coordinates. Enable **Show current position** to add a separately labeled position row in either layout. A short **P** hint explains capturing a target or stopping navigation. While navigating, it disappears after a few seconds in compact mode; detailed mode keeps it visible.
 
-The compact panel shrinks when its hints disappear. Coordinate rows always include X, Y and Z. Arrow smoothing ranges from 0 (instant response) to 1 (softest response). The settings preview uses the current GUI screen proportions and has switchable travelling, target-behind-you and horizontal-arrival examples. It has its own animation state and does not change live navigation.
+The compass reserves enough space for every arrow rotation and a fixed turn-around row. Distance and optional height guidance share one line. Coordinate rows include X, Y and Z. Arrow smoothing ranges from 0 (instant response) to 1 (softest response). Live HUD, compass and building guides are hidden behind the planner, editor and settings. The settings preview uses the current GUI screen proportions and has switchable travelling, target-behind-you and horizontal-arrival examples. It has its own animation state and does not change live navigation.
 
 ## Targets and portal placement
 
-Stand at the intended portal interior block (the player feet position), then press **P**. The calculated target refers to a portal interior block, not an obsidian frame block. X and Z are converted by 8; the original Y is kept as a height reference. The green check means **X/Z target reached**, even if your height differs. The coordinate rows keep the reference Y visible when optional height hints are disabled.
+Stand at the intended portal interior block (the player feet position), then press **P**. The calculated target refers to a portal interior block, not an obsidian frame block. X and Z are converted by 8; the original Y is kept as a height reference. The green check means **X/Z target reached**, even if your height differs. The target coordinates keep the chosen building Y visible when optional height hints are disabled.
 
 The helper calculates a building reference. It does not guarantee which portal Minecraft will select: existing nearby portals and their height affect linking. It does not inspect unloaded chunks or server portal rules. Check the connection in both directions after building.
 

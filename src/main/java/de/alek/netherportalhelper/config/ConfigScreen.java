@@ -3,6 +3,7 @@ package de.alek.netherportalhelper.config;
 import de.alek.netherportalhelper.hud.HUDOverlay;
 import de.alek.netherportalhelper.hud.PreviewScene;
 import de.alek.netherportalhelper.screen.PortalScreen;
+import de.alek.netherportalhelper.screen.PortalMenuScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -15,7 +16,7 @@ import net.minecraft.network.chat.Component;
 import java.util.Locale;
 import java.util.function.DoubleConsumer;
 
-public final class ConfigScreen extends Screen {
+public final class ConfigScreen extends Screen implements PortalMenuScreen {
     private final Screen parent;
     private ModConfig draft;
     private Page page = Page.HUD;
@@ -163,7 +164,12 @@ public final class ConfigScreen extends Screen {
                         "config.netherportalhelper.opacity", draft.backgroundOpacity, 0.0, 1.0, 2, "",
                         value -> draft.backgroundOpacity = (float) value);
             }
-            case 3 -> addLayout(left, y, cellWidth * 2 + columnGap, rowHeight);
+            case 3 -> {
+                addLayout(left, y, cellWidth, rowHeight);
+                addToggle(left + cellWidth + columnGap, y, cellWidth, rowHeight,
+                        "config.netherportalhelper.current_position", () -> draft.showCurrentPosition,
+                        value -> draft.showCurrentPosition = value);
+            }
             default -> throw new IllegalArgumentException("Unknown HUD options row: " + row);
         }
     }

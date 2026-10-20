@@ -7,8 +7,9 @@ public class ModConfig {
     public int hudPanelY = 6;
     public HudAnchor hudAnchor = HudAnchor.TOP_LEFT;
     public float hudScale = 1.0f;
-    public float backgroundOpacity = 0.70f;
+    public float backgroundOpacity = 0.82f;
     public HudLayout hudLayout = HudLayout.COMPACT;
+    public boolean showCurrentPosition = false;
 
     public int compassCenterY = 56;
     public float compassArrowScale = 3.0f;
@@ -26,7 +27,7 @@ public class ModConfig {
         if (hudAnchor == null) hudAnchor = HudAnchor.TOP_LEFT;
         if (hudLayout == null) hudLayout = HudLayout.COMPACT;
         hudScale = clampFloat(hudScale, 1.0f, 0.75f, 2.0f);
-        backgroundOpacity = clampFloat(backgroundOpacity, 0.70f, 0.0f, 1.0f);
+        backgroundOpacity = clampFloat(backgroundOpacity, 0.82f, 0.0f, 1.0f);
         compassCenterY = clampInt(compassCenterY, 20, 400);
         compassArrowScale = clampFloat(compassArrowScale, 3.0f, 1.0f, 6.0f);
         compassTextScale = clampFloat(compassTextScale, 1.0f, 0.6f, 2.5f);
@@ -43,6 +44,7 @@ public class ModConfig {
         copy.hudScale = hudScale;
         copy.backgroundOpacity = backgroundOpacity;
         copy.hudLayout = hudLayout;
+        copy.showCurrentPosition = showCurrentPosition;
         copy.compassCenterY = compassCenterY;
         copy.compassArrowScale = compassArrowScale;
         copy.compassTextScale = compassTextScale;

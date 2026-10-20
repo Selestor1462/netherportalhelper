@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.1 — HUD and planner clarity
+
+- Kept the compass arrow inside a rotation-safe area and reserved a stable row for the turn-around hint.
+- Combined distance and height guidance, and made the target-only HUD compact by default with optional current position.
+- Distinguished position and destination explicitly, reduced dimension icons, and moved linking guidance into contextual planner help.
+- Connected saved-pair lists and build details in a responsive planner with prominent navigation and grouped build-preview controls.
+- Hid live navigation and building guides behind the mod's menus while retaining the settings preview.
+- Updated all seven languages and added compass-boundary regression checks.
+
 ## 1.4.0 — Portal Planner
 
 - Added a portal planner opened with **O**, including named saved pairs, navigation selection, rename, delete and deactivation without deleting entries.
