@@ -9,8 +9,10 @@ import org.slf4j.Logger;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 
 public final class ConfigManager {
@@ -62,17 +64,38 @@ public final class ConfigManager {
         }
     }
 
-    public static void save(Logger logger) {
-        config.normalize();
-        try (Writer writer = Files.newBufferedWriter(
-                CONFIG_PATH,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING,
-                StandardOpenOption.WRITE
-        )) {
-            GSON.toJson(config, writer);
+    public static boolean save(Logger logger) {
+        return save(config, logger);
+    }
+
+    public static boolean save(ModConfig updatedConfig, Logger logger) {
+        updatedConfig.normalize();
+        Path temporaryPath = CONFIG_PATH.resolveSibling(CONFIG_PATH.getFileName() + ".tmp");
+        try {
+            Files.createDirectories(CONFIG_PATH.getParent());
+            try (Writer writer = Files.newBufferedWriter(
+                    temporaryPath,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE
+            )) {
+                GSON.toJson(updatedConfig, writer);
+            }
+            try {
+                Files.move(temporaryPath, CONFIG_PATH, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(temporaryPath, CONFIG_PATH, StandardCopyOption.REPLACE_EXISTING);
+            }
+            config = updatedConfig;
+            return true;
         } catch (IOException exception) {
+            try {
+                Files.deleteIfExists(temporaryPath);
+            } catch (IOException cleanupException) {
+                exception.addSuppressed(cleanupException);
+            }
             logger.error("Config konnte nicht gespeichert werden: {}", CONFIG_PATH, exception);
+            return false;
         }
     }
 }

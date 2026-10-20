@@ -3,7 +3,7 @@
   "id": "netherportalhelper",
   "version": "${version}",
   "name": "Nether Portal Helper",
-  "description": "Portal coordinate helper with polished HUD and seamless compass navigation.",
+  "description": "Client-side portal planner with saved pairs, coordinate navigation and optional building guides.",
   "authors": ["Alek"],
   "contact": {
     "homepage": "https://github.com/Aleksej-Ranke/netherportalhelper",
@@ -17,6 +17,9 @@
   "entrypoints": {
     "client": [
       "de.alek.netherportalhelper.Netherportalhelper"
+    ],
+    "modmenu": [
+      "de.alek.netherportalhelper.config.ModMenuIntegration"
     ]
   },
   "depends": {
@@ -24,5 +27,8 @@
     "fabric-api": ">=${fabric_version}",
     "minecraft": "${minecraft_version}",
     "java": ">=25"
+  },
+  "suggests": {
+    "modmenu": ">=20.0.2"
   }
 }

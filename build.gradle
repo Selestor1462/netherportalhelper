@@ -10,12 +10,18 @@ base {
     archivesName = project.archives_base_name
 }
 
-repositories {}
+repositories {
+    maven {
+        name = 'TerraformersMC'
+        url = 'https://maven.terraformersmc.com/releases/'
+    }
+}
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    implementation "com.terraformersmc:modmenu:${project.modmenu_version}"
 }
 
 jar {
@@ -65,7 +71,7 @@ publishing {
 
 tasks.register('regressionTest', JavaExec) {
     group = 'verification'
-    description = 'Checks portal coordinate conversion at negative and positive boundaries.'
+    description = 'Runs the portal coordinate, configuration, HUD layout, and compass regression checks.'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'de.alek.netherportalhelper.util.PortalTrackerRegressionCheck'
     enableAssertions = true

@@ -2,6 +2,7 @@
 /.gradle/
 /build/
 /out/
+/work/
 
 # Fabric / Dev Laufzeit (generiert durch gradlew runClient)
 /run/
