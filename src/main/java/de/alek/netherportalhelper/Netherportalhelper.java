@@ -38,6 +38,7 @@ public class Netherportalhelper implements ClientModInitializer {
     private static KeyMapping freezeKey;
     private static KeyMapping toggleKey;
     private static KeyMapping plannerKey;
+    private static KeyMapping stopKey;
 
     @Override
     public void onInitializeClient() {
@@ -60,6 +61,8 @@ public class Netherportalhelper implements ClientModInitializer {
             plannerKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.netherportalhelper.planner", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_O, KEY_CATEGORY));
 
+            stopKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                    "key.netherportalhelper.stop", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KEY_CATEGORY));
             HudElementRegistry.attachElementAfter(
                     VanillaHudElements.BOSS_BAR,
                     Identifier.fromNamespaceAndPath("netherportalhelper", "main_hud"),
@@ -117,17 +120,6 @@ public class Netherportalhelper implements ClientModInitializer {
                         return;
                     }
 
-                    if (PortalTracker.isActive()) {
-                        try {
-                            PortalManager.unlock();
-                            client.player.sendOverlayMessage(Component.translatable("msg.netherportalhelper.unlocked")
-                                    .withStyle(ChatFormatting.GRAY));
-                        } catch (IOException exception) {
-                            reportSaveFailure(client, exception);
-                        }
-                        continue;
-                    }
-
                     ResourceKey<Level> currentDim = client.level.dimension();
 
                     if (!PortalTracker.isPortalDimension(currentDim)) {
@@ -136,15 +128,28 @@ public class Netherportalhelper implements ClientModInitializer {
                     }
 
                     try {
-                        PortalManager.capture(client, Component.translatable("planner.netherportalhelper.default_name",
+                        var captured = PortalManager.capture(client, Component.translatable("planner.netherportalhelper.default_name",
                                 PortalManager.targets().size() + 1).getString());
-                        client.player.sendOverlayMessage(Component.translatable("msg.netherportalhelper.locked")
-                                .withStyle(ChatFormatting.GREEN));
+                        String feedback = captured.duplicate()
+                                ? (captured.positionFallback() ? "capture_duplicate_position" : "capture_duplicate")
+                                : (captured.positionFallback() ? "capture_position" : "capture_portal");
+                        client.player.sendOverlayMessage(Component.translatable("planner.netherportalhelper." + feedback)
+                                .withStyle(captured.duplicate() ? ChatFormatting.GRAY : ChatFormatting.GREEN));
                     } catch (IOException exception) {
                         reportSaveFailure(client, exception);
                     } catch (IllegalArgumentException exception) {
                         client.player.sendOverlayMessage(Component.translatable("planner.netherportalhelper.invalid_input")
                                 .withStyle(ChatFormatting.RED));
+                    }
+                }
+                while (stopKey.consumeClick()) {
+                    if (!PortalTracker.isActive() || client.player == null) continue;
+                    try {
+                        PortalManager.unlock();
+                        client.player.sendOverlayMessage(Component.translatable("msg.netherportalhelper.unlocked")
+                                .withStyle(ChatFormatting.GRAY));
+                    } catch (IOException exception) {
+                        reportSaveFailure(client, exception);
                     }
                 }
             });

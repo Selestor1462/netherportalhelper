@@ -6,10 +6,12 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
 import java.util.UUID;
+import java.util.Objects;
 
-/** A saved source and its reference destination, with independent building choices. */
+/** A source, a construction plan, and an optional recorded counterpart with human link verification. */
 public record PortalTarget(UUID id, String name, BlockPos source, ResourceKey<Level> sourceDimension,
-                           BlockPos calculatedDestination, Integer buildY, Direction.Axis axis) {
+                           BlockPos calculatedDestination, Integer buildY, Direction.Axis axis,
+                           BlockPos observedDestination, boolean linkVerified) {
     public PortalTarget {
         if (id == null || name == null || name.isBlank()) {
             throw new IllegalArgumentException("Portal identity and name are required");
@@ -19,8 +21,15 @@ public record PortalTarget(UUID id, String name, BlockPos source, ResourceKey<Le
         if (!PortalTracker.isPortalDimension(sourceDimension)) throw new IllegalArgumentException("Unsupported portal dimension");
         source = checkedPosition(source);
         calculatedDestination = checkedPosition(calculatedDestination);
+        if (observedDestination != null) observedDestination = checkedPosition(observedDestination);
+        if (linkVerified && observedDestination == null) throw new IllegalArgumentException("A recorded counterpart is required before verifying the link");
         if (buildY != null && (buildY < -2032 || buildY > 2031)) throw new IllegalArgumentException("Build height is outside supported bounds");
         if (axis != Direction.Axis.X && axis != Direction.Axis.Z) throw new IllegalArgumentException("Portal axis must be X or Z");
+    }
+
+    public PortalTarget(UUID id, String name, BlockPos source, ResourceKey<Level> sourceDimension,
+                        BlockPos calculatedDestination, Integer buildY, Direction.Axis axis) {
+        this(id, name, source, sourceDimension, calculatedDestination, buildY, axis, null, false);
     }
 
     public static PortalTarget create(String name, BlockPos source, ResourceKey<Level> dimension,
@@ -36,16 +45,34 @@ public record PortalTarget(UUID id, String name, BlockPos source, ResourceKey<Le
     }
 
     public BlockPos destination() {
+        return observedDestination == null ? plannedDestination() : observedDestination;
+    }
+
+    public BlockPos plannedDestination() {
         return buildY == null ? calculatedDestination
                 : new BlockPos(calculatedDestination.getX(), buildY, calculatedDestination.getZ());
     }
 
+    public boolean hasObservedDestination() { return observedDestination != null; }
+
     public PortalTarget withName(String newName) {
-        return new PortalTarget(id, newName, source, sourceDimension, calculatedDestination, buildY, axis);
+        return new PortalTarget(id, newName, source, sourceDimension, calculatedDestination, buildY, axis,
+                observedDestination, linkVerified);
     }
 
     public PortalTarget withBuild(Integer newBuildY, Direction.Axis newAxis) {
+        if (Objects.equals(buildY, newBuildY) && axis == newAxis) return this;
         return new PortalTarget(id, name, source, sourceDimension, calculatedDestination, newBuildY, newAxis);
+    }
+
+    public PortalTarget withObservedDestination(BlockPos position) {
+        return new PortalTarget(id, name, source, sourceDimension, calculatedDestination, buildY, axis,
+                position, position != null && position.equals(observedDestination) && linkVerified);
+    }
+
+    public PortalTarget withLinkVerified(boolean verified) {
+        return new PortalTarget(id, name, source, sourceDimension, calculatedDestination, buildY, axis,
+                observedDestination, verified);
     }
 
     private static BlockPos checkedPosition(BlockPos position) {

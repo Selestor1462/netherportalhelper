@@ -17,6 +17,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.level.Level;
 
 import java.io.IOException;
@@ -36,11 +37,14 @@ public final class PortalScreen extends Screen implements PortalMenuScreen {
     private int left;
     private int contentWidth;
     private int bodyBottom;
+    private int footerY;
     private int scrollOffset;
     private int maxScroll;
     private Button scrollUp;
     private Button scrollDown;
     private String messageKey;
+    private boolean messageError;
+    private List<FormattedCharSequence> messageLines = List.of();
     private List<PortalTarget> targets = List.of();
 
     public PortalScreen(Screen parent) {
@@ -59,7 +63,9 @@ public final class PortalScreen extends Screen implements PortalMenuScreen {
         }
         contentWidth = Math.min(840, Math.max(1, width - 48));
         left = (width - contentWidth) / 2;
-        bodyBottom = Math.max(BODY_TOP + 20, height - 52);
+        messageLines = messageKey == null ? List.of() : font.split(text(messageKey), contentWidth);
+        footerY = height - 40 - Math.max(0, messageLines.size() * (font.lineHeight + 2) - 10);
+        bodyBottom = Math.max(BODY_TOP + 20, footerY - 12);
         boolean wide = contentWidth >= 600;
         int listWidth = wide ? (contentWidth - 20) * 2 / 5 : contentWidth;
         int detailLeft = wide ? left + listWidth + 20 : left;
@@ -68,16 +74,24 @@ public final class PortalScreen extends Screen implements PortalMenuScreen {
         // A short stacked list keeps the selected pair directly beside its details in the flow.
         pageSize = wide ? Math.max(1, (bodyBottom - BODY_TOP - 68) / 34)
                 : Math.max(1, Math.min(4, (height - 280) / 34));
-        if (previousPageSize > 0 && previousPageSize != pageSize) page = page * previousPageSize / pageSize;
+        if (previousPageSize > 0 && previousPageSize != pageSize) {
+            int selectedIndex = -1;
+            for (int index = 0; index < targets.size(); index++) {
+                if (targets.get(index).id().equals(selected)) selectedIndex = index;
+            }
+            page = selectedIndex < 0 ? page * previousPageSize / pageSize : selectedIndex / pageSize;
+        }
         int pages = Math.max(1, (targets.size() + pageSize - 1) / pageSize);
         page = Math.max(0, Math.min(page, pages - 1));
         boolean inWorld = minecraft.player != null && minecraft.level != null;
         label(text("saved_pairs"), left, BODY_TOP, listWidth, 0xFFFFFFFF);
         int half = (listWidth - 4) / 2;
         Button capture = bodyButton("capture", left, BODY_TOP + 14, half, () -> perform(() -> {
-            PortalManager.capture(minecraft, text("default_name", targets.size() + 1).getString());
-            List<PortalTarget> updated = PortalManager.targets();
-            if (!updated.isEmpty()) reveal(updated.getLast().id());
+            PortalManager.CaptureResult result = PortalManager.capture(minecraft, text("default_name", targets.size() + 1).getString());
+            reveal(result.target().id());
+            messageKey = result.duplicate()
+                    ? result.positionFallback() ? "capture_duplicate_position" : "capture_duplicate"
+                    : result.positionFallback() ? "capture_position" : "capture_portal";
         }));
         capture.active = inWorld && PortalTracker.isPortalDimension(minecraft.level.dimension());
         capture.setTooltip(Tooltip.create(text("capture_hint")));
@@ -98,22 +112,26 @@ public final class PortalScreen extends Screen implements PortalMenuScreen {
                 messageKey = null;
                 rebuildWidgets();
             }));
-            entry.setTooltip(Tooltip.create(summary));
+            entry.setTooltip(Tooltip.create(Component.literal(target.name()).append("\n").append(summary)));
         }
         int pageY = listTop + Math.max(1, shown) * 34;
         if (targets.isEmpty()) label(text("empty"), left, listTop + 10, listWidth, 0xFFAAAAAA);
-        bodyButton("previous", left, pageY, 26, () -> {
-            page--;
-            rebuildWidgets();
-        }).active = page > 0;
-        bodyButton("next", left + listWidth - 26, pageY, 26, () -> {
-            page++;
-            rebuildWidgets();
-        }).active = page < pages - 1;
-        label(text("page", page + 1, pages), left + 30, pageY + 6, listWidth - 60, 0xFFAAAAAA);
-        int detailTop = wide ? BODY_TOP : pageY + 32;
+        int listBottom = pageY;
+        if (pages > 1) {
+            bodyButton("previous", left, pageY, 26, () -> {
+                page--;
+                rebuildWidgets();
+            }).active = page > 0;
+            bodyButton("next", left + listWidth - 26, pageY, 26, () -> {
+                page++;
+                rebuildWidgets();
+            }).active = page < pages - 1;
+            label(text("page", page + 1, pages), left + 30, pageY + 6, listWidth - 60, 0xFFAAAAAA);
+            listBottom += 24;
+        }
+        int detailTop = wide ? BODY_TOP : listBottom + 12;
         int detailBottom = addDetails(detailLeft, detailTop, detailWidth, inWorld, active);
-        int contentBottom = Math.max(pageY + 20, detailBottom);
+        int contentBottom = Math.max(listBottom, detailBottom);
         maxScroll = Math.max(0, contentBottom - bodyBottom);
         scrollUp = addRenderableWidget(Button.builder(Component.literal("▲"), ignored -> scroll(-34))
                 .bounds(left + contentWidth + 4, BODY_TOP, 16, 20).build());
@@ -122,54 +140,129 @@ public final class PortalScreen extends Screen implements PortalMenuScreen {
         scrollUp.setTooltip(Tooltip.create(text("scroll_hint")));
         scrollDown.setTooltip(Tooltip.create(text("scroll_hint")));
         updateScroll();
-        int footerHalf = (contentWidth - 4) / 2;
-        button("settings", left, height - 40, footerHalf,
+        boolean canUndo = PortalManager.canUndoDelete();
+        int footerParts = canUndo ? 3 : 2;
+        int footerWidth = (contentWidth - (footerParts - 1) * 4) / footerParts;
+        button("settings", left, footerY, footerWidth,
                 () -> minecraft.gui.setScreen(new ConfigScreen(this)));
-        button("done", left + footerHalf + 4, height - 40, contentWidth - footerHalf - 4, this::onClose);
+        if (canUndo) button("undo_delete", left + footerWidth + 4, footerY, footerWidth, () -> perform(() -> {
+            List<UUID> previousIds = PortalManager.targets().stream().map(PortalTarget::id).toList();
+            PortalTarget restored = PortalManager.undoDelete();
+            reveal(restored.id());
+            messageKey = previousIds.contains(restored.id()) ? "restore_existing" : "restored";
+        }));
+        int doneX = left + (footerParts - 1) * (footerWidth + 4);
+        button("done", doneX, footerY, left + contentWidth - doneX, this::onClose);
     }
 
     private int addDetails(int x, int y, int detailWidth, boolean inWorld, PortalTarget active) {
-        label(text("selected_target"), x, y, detailWidth, 0xFFFFFFFF);
         PortalTarget target = selectedTarget();
         boolean hasSelection = target != null;
         if (target != null) {
-            label(Component.literal(target.name()), x, y + 15, detailWidth, 0xFFFFFFFF);
-            label(text("source", coordinates(target.sourceDimension(), target.source())), x, y + 30, detailWidth, 0xFFCCCCCC);
-            label(text("destination", coordinates(target.destinationDimension(), target.destination())), x, y + 43, detailWidth, 0xFF88EEAA);
-            label(text("reference", target.calculatedDestination().getY(), target.axis().name()), x, y + 56, detailWidth, 0xFFAAAAAA);
-        } else label(text("no_selection"), x, y + 30, detailWidth, 0xFFAAAAAA);
-        int secondaryWidth = Math.max(1, (detailWidth - 4) / 3);
-        int primaryWidth = detailWidth - secondaryWidth - 4;
-        bodyButton("navigate", x, y + 74, primaryWidth, () -> perform(() -> {
-            PortalManager.select(selected);
-            HUDOverlay.resetCompassState();
-            HUDOverlay.showHints();
-            minecraft.gui.setScreen(null);
-        })).active = hasSelection && inWorld;
-        bodyButton("edit", x + primaryWidth + 4, y + 74, secondaryWidth,
-                () -> minecraft.gui.setScreen(new PortalEditorScreen(this, selectedTarget()))).active = hasSelection;
+            y = wrappedLabel(text("selected_name", target.name()), x, y, detailWidth, 0xFFFFFFFF);
+            y = wrappedLabel(text(target.linkVerified() ? "status_verified"
+                    : target.hasObservedDestination() ? "status_recorded" : "status_planned"), x, y, detailWidth,
+                    target.linkVerified() ? 0xFF88EEAA : target.hasObservedDestination() ? 0xFF88DDEE : 0xFFAAAAAA);
+            y = wrappedLabel(text("source", coordinates(target.sourceDimension(), target.source())), x, y + 4, detailWidth, 0xFFCCCCCC);
+            y = wrappedLabel(text(target.hasObservedDestination() ? "recorded_counterpart" : "planned_counterpart",
+                    coordinates(target.destinationDimension(), target.destination())), x, y, detailWidth,
+                    target.hasObservedDestination() ? 0xFF88DDEE : 0xFFCCCCCC);
+            y = wrappedLabel(text("reference", target.calculatedDestination().getY(), target.axis().name()), x, y, detailWidth, 0xFFAAAAAA);
+        } else {
+            y = wrappedLabel(text("selected_target"), x, y, detailWidth, 0xFFFFFFFF);
+            y = wrappedLabel(text("no_selection"), x, y + 4, detailWidth, 0xFFAAAAAA);
+        }
+        y += 8;
+        boolean selectedIsActive = active != null && active.id().equals(selected);
+        int returnWidth = Math.max(1, (detailWidth - 4) / 3);
+        int forwardWidth = detailWidth - returnWidth - 4;
+        String forwardKey = selectedIsActive && !PortalTracker.isReturning() ? "continue_navigation" : "navigate_counterpart";
+        Button forward = bodyButton(forwardKey, x, y, forwardWidth, () -> navigate(false));
+        forward.active = hasSelection && inWorld;
+        forward.setTooltip(Tooltip.create(text(forwardKey)));
+        Button returning = bodyButton("navigate_source", x + forwardWidth + 4, y, returnWidth, () -> navigate(true));
+        returning.active = hasSelection && inWorld;
+        returning.setTooltip(Tooltip.create(text("navigate_source")));
+        y += 24;
         int half = (detailWidth - 4) / 2;
-        bodyButton("copy", x, y + 98, half, () -> {
+        boolean recorded = hasSelection && target.hasObservedDestination();
+        Button record = bodyButton(recorded ? "update_counterpart" : "record_counterpart", x, y,
+                recorded ? half : detailWidth, () -> perform(() -> {
+            try {
+                PortalManager.recordDestination(selected, minecraft);
+                messageKey = "counterpart_recorded";
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                messageKey = "record_counterpart_error";
+                messageError = true;
+            }
+        }));
+        record.active = hasSelection && inWorld && minecraft.level.dimension().equals(target.destinationDimension());
+        record.setTooltip(Tooltip.create(text("record_counterpart_hint")));
+        if (recorded) {
+            String testedKey = target.linkVerified() ? "mark_untested" : "mark_tested";
+            Button tested = bodyButton(testedKey, x + half + 4, y, detailWidth - half - 4, () -> perform(() -> {
+                boolean verified = !selectedTarget().linkVerified();
+                PortalManager.markVerified(selected, verified);
+                messageKey = verified ? "tested_saved" : "tested_cleared";
+            }));
+            tested.setTooltip(Tooltip.create(text(testedKey).copy().append("\n").append(text("tested_hint"))));
+        }
+        y += 24;
+        bodyButton("copy_source", x, y, half, () -> {
             minecraft.keyboardHandler.setClipboard(PortalCoordinates.format(selectedTarget()));
-            messageKey = "copied";
+            showMessage("copied_source");
         }).active = hasSelection;
-        bodyButton("delete", x + half + 4, y + 98, detailWidth - half - 4, () -> perform(() -> {
+        bodyButton("copy_destination", x + half + 4, y, detailWidth - half - 4, () -> {
+            PortalTarget copied = selectedTarget();
+            BlockPos position = copied.destination();
+            minecraft.keyboardHandler.setClipboard((copied.destinationDimension().equals(Level.NETHER) ? "nether" : "overworld")
+                    + " " + position.getX() + " " + position.getY() + " " + position.getZ());
+            showMessage("copied_destination");
+        }).active = hasSelection;
+        y += 24;
+        bodyButton("edit", x, y, half,
+                () -> minecraft.gui.setScreen(new PortalEditorScreen(this, selectedTarget()))).active = hasSelection;
+        bodyButton("delete", x + half + 4, y, detailWidth - half - 4, () -> perform(() -> {
             int previousIndex = targets.indexOf(selectedTarget());
             PortalManager.delete(selected);
             List<PortalTarget> updated = PortalManager.targets();
             selected = updated.isEmpty() ? null : updated.get(Math.min(previousIndex, updated.size() - 1)).id();
+            messageKey = "deleted";
         })).active = hasSelection;
-        label(text("build_preview"), x, y + 134, detailWidth, 0xFFFFFFFF);
+        y += 36;
+        y = wrappedLabel(active == null ? text("no_active_guides") : text("active_guides", active.name()),
+                x, y, detailWidth, 0xFFFFFFFF);
+        if (active != null) y = wrappedLabel(text(PortalTracker.isReturning() ? "active_return" : "active_forward", active.name()),
+                x, y, detailWidth, 0xFF88EEAA);
+        y += 4;
         addBodyButton(Button.builder(toggle("marker", ConfigManager.get().showTargetMarker), ignored -> toggleVisual(true))
-                .bounds(x, y + 149, half, 20).build()).active = hasSelection;
+                .bounds(x, y, half, 20).build()).active = active != null;
         addBodyButton(Button.builder(toggle("frame", ConfigManager.get().showFramePreview), ignored -> toggleVisual(false))
-                .bounds(x + half + 4, y + 149, detailWidth - half - 4, 20).build()).active = hasSelection;
-        bodyButton("deactivate", x, y + 181, detailWidth, () -> perform(() -> {
+                .bounds(x + half + 4, y, detailWidth - half - 4, 20).build()).active = active != null;
+        y += 24;
+        Button stop = addBodyButton(Button.builder(active == null ? text("deactivate") : text("stop_named", active.name()), ignored -> perform(() -> {
             PortalManager.unlock();
             HUDOverlay.resetCompassState();
             HUDOverlay.showHints();
-        })).active = active != null || PortalTracker.isActive();
-        return y + 201;
+        })).bounds(x, y, detailWidth, 20).build());
+        stop.active = active != null;
+        if (active != null) stop.setTooltip(Tooltip.create(text("stop_named", active.name())));
+        return y + 20;
+    }
+
+    private void navigate(boolean returning) {
+        perform(() -> {
+            PortalManager.select(selected, returning);
+            HUDOverlay.resetCompassState();
+            HUDOverlay.showHints();
+            minecraft.gui.setScreen(null);
+        });
+    }
+
+    void showMessage(String key) {
+        messageKey = key;
+        messageError = false;
+        if (minecraft != null && minecraft.gui.screen() == this) rebuildWidgets();
     }
 
     private void toggleVisual(boolean marker) {
@@ -177,21 +270,25 @@ public final class PortalScreen extends Screen implements PortalMenuScreen {
         if (marker) draft.showTargetMarker = !draft.showTargetMarker;
         else draft.showFramePreview = !draft.showFramePreview;
         messageKey = ConfigManager.save(draft, Netherportalhelper.getLogger()) ? null : "storage_error";
+        messageError = messageKey != null;
         rebuildWidgets();
     }
 
     private void perform(StorageAction action) {
         messageKey = null;
+        messageError = false;
         try {
             action.run();
-            // Navigate closes this screen; rebuilding it would reopen and reset focus unnecessarily.
-            if (minecraft.gui.screen() == this) rebuildWidgets();
         } catch (IOException exception) {
             Netherportalhelper.getLogger().error("Could not save portal planner change", exception);
             messageKey = "storage_error";
+            messageError = true;
         } catch (IllegalArgumentException | IllegalStateException exception) {
             messageKey = "invalid_input";
+            messageError = true;
         }
+        // Navigation closes this screen; rebuild only while it is still open.
+        if (minecraft.gui.screen() == this) rebuildWidgets();
     }
 
     private PortalTarget selectedTarget() {
@@ -225,7 +322,15 @@ public final class PortalScreen extends Screen implements PortalMenuScreen {
     }
 
     private void label(Component text, int x, int y, int labelWidth, int color) {
-        labels.add(new Label(text, x, y, Math.max(1, labelWidth), color));
+        labels.add(new Label(text.getVisualOrderText(), x, y, Math.max(1, labelWidth), color));
+    }
+
+    private int wrappedLabel(Component text, int x, int y, int labelWidth, int color) {
+        for (FormattedCharSequence line : font.split(text, Math.max(1, labelWidth))) {
+            labels.add(new Label(line, x, y, Math.max(1, labelWidth), color));
+            y += font.lineHeight + 3;
+        }
+        return y;
     }
 
     private void scroll(int amount) {
@@ -267,9 +372,13 @@ public final class PortalScreen extends Screen implements PortalMenuScreen {
             graphics.disableScissor();
         }
         graphics.disableScissor();
-        graphics.horizontalLine(left, left + contentWidth, height - 46, 0xFF666666);
-        if (messageKey != null) graphics.centeredText(font, text(messageKey), width / 2, height - 14,
-                messageKey.equals("copied") ? 0xFF88EEAA : 0xFFFF7777);
+        graphics.horizontalLine(left, left + contentWidth, footerY - 6, 0xFF666666);
+        int messageY = footerY + 26;
+        for (FormattedCharSequence line : messageLines) {
+            graphics.text(font, line, left + (contentWidth - font.width(line)) / 2, messageY,
+                    messageError ? 0xFFFF7777 : 0xFF88EEAA);
+            messageY += font.lineHeight + 2;
+        }
     }
 
     static Component coordinates(ResourceKey<Level> dimension, BlockPos position) {
@@ -318,7 +427,7 @@ public final class PortalScreen extends Screen implements PortalMenuScreen {
     }
 
     private record BodyButton(Button button, int y) { }
-    private record Label(Component text, int x, int y, int width, int color) { }
+    private record Label(FormattedCharSequence text, int x, int y, int width, int color) { }
 
     @FunctionalInterface
     private interface StorageAction {

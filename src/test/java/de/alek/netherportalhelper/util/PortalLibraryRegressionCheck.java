@@ -36,6 +36,7 @@ public final class PortalLibraryRegressionCheck {
         try {
             checkLibraryRoundTrip(file);
             checkMigration(file);
+            checkVersionTwoMigration(file);
             checkInvalidFilesPreserved(file);
         } finally {
             Files.deleteIfExists(file);
@@ -140,7 +141,8 @@ public final class PortalLibraryRegressionCheck {
         assert store.loadLibrary("world-a").equals(first) : "Migration IDs must be stable before saving";
         TargetStore.Library sibling = store.loadLibrary("world-b");
         store.saveLibrary("world-a", new TargetStore.Library(List.of(target.withName("Renamed")), target.id()));
-        assert JsonParser.parseString(Files.readString(file)).getAsJsonObject().get("version").getAsInt() == 2;
+        assert JsonParser.parseString(Files.readString(file)).getAsJsonObject().get("version").getAsInt() == 3;
+        assert !target.hasObservedDestination() && !target.linkVerified() && !first.returning();
         assert new TargetStore(file).loadLibrary("world-b").equals(sibling);
         assert store.load("world-b").orElseThrow().destination().equals(new BlockPos(-16, 61, 24));
     }
@@ -161,6 +163,35 @@ public final class PortalLibraryRegressionCheck {
             expectIo(() -> store.saveLibrary("world-b", TargetStore.Library.empty()));
             assert Files.readString(file).equals(damaged) : "Invalid data must survive failed read and write";
         }
+    }
+
+    private static void checkVersionTwoMigration(Path file) throws Exception {
+        String fixture = """
+                {"version":2,"targets":{"world-a":{"activeId":"00000000-0000-0000-0000-000000000001",
+                  "targets":[{"id":"00000000-0000-0000-0000-000000000001","name":"Old plan",
+                  "source":{"dimension":"overworld","x":120,"y":72,"z":-48},
+                  "calculatedDestination":{"dimension":"nether","x":15,"y":72,"z":-6},
+                  "buildY":90,"axis":"Z"}]}}}
+                """;
+        Files.writeString(file, fixture);
+        TargetStore store = new TargetStore(file);
+        TargetStore.Library migrated = store.loadLibrary("world-a");
+        PortalTarget target = migrated.targets().getFirst();
+        assert !migrated.returning() && !target.hasObservedDestination() && !target.linkVerified();
+        assert target.destination().equals(new BlockPos(15, 90, -6));
+        PortalTarget observed = target.withObservedDestination(new BlockPos(17, 65, -5)).withLinkVerified(true);
+        store.saveLibrary("world-b", new TargetStore.Library(List.of(observed), observed.id(), true));
+        assert new TargetStore(file).loadLibrary("world-a").equals(migrated) : "Saving another scope must preserve migrated plans";
+        assert new TargetStore(file).loadLibrary("world-b").equals(new TargetStore.Library(List.of(observed), observed.id(), true));
+        String valid = Files.readString(file);
+        var damaged = JsonParser.parseString(valid).getAsJsonObject();
+        damaged.getAsJsonObject("targets").getAsJsonObject("world-b").getAsJsonArray("targets")
+                .get(0).getAsJsonObject().getAsJsonObject("observedDestination").addProperty("dimension", "overworld");
+        Files.writeString(file, damaged.toString());
+        expectIo(() -> store.loadLibrary("world-a"));
+        expectIo(() -> store.saveLibrary("world-a", migrated));
+        assert Files.readString(file).equals(damaged.toString()) : "An invalid sibling endpoint must never be overwritten";
+        Files.writeString(file, valid);
     }
 
     private static void expectInvalid(CheckedAction action) {

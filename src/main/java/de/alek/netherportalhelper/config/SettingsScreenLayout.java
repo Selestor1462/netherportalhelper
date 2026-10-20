@@ -11,6 +11,22 @@ public final class SettingsScreenLayout {
     private SettingsScreenLayout() {
     }
 
+    /** A readable close-up and a separate, deliberately small placement overview. */
+    public static PreviewPanels previewPanels(Layout layout) {
+        if (!layout.previewVisible()) return new PreviewPanels(0, 0, 0, 0, 0, 0, 0, 0, 0);
+        int canvasWidth = Math.max(0, layout.previewWidth() - 8);
+        int canvasHeight = Math.max(0, layout.previewCanvasHeight() - 8);
+        int overviewWidth = Math.min(150, Math.max(0, canvasWidth / 4));
+        int overviewHeaderHeight = Math.min(12, canvasHeight);
+        int overviewHeight = Math.min(84, canvasHeight - overviewHeaderHeight);
+        int overviewX = layout.previewX() + layout.previewWidth() - 4 - overviewWidth;
+        int overviewLabelY = layout.previewCanvasY() + 4;
+        int detailX = layout.previewX() + 4;
+        int detailWidth = Math.max(0, overviewX - 8 - detailX);
+        return new PreviewPanels(detailX, layout.previewCanvasY() + 4, detailWidth, canvasHeight,
+                overviewX, overviewLabelY + overviewHeaderHeight, overviewWidth, overviewHeight, overviewLabelY);
+    }
+
     public static Layout calculate(int screenWidth, int screenHeight) {
         int width = Math.max(1, screenWidth);
         int height = Math.max(1, screenHeight);
@@ -85,4 +101,8 @@ public final class SettingsScreenLayout {
                          int rowHeight, int controlLeft, int controlRight, int columnGap, int columnWidth,
                          int scrollbarReserve, int scrollbarX, int footerY, boolean stackedFooter) {
     }
+
+    public record PreviewPanels(int detailX, int detailY, int detailWidth, int detailHeight,
+                                int overviewX, int overviewY, int overviewWidth, int overviewHeight,
+                                int overviewLabelY) { }
 }

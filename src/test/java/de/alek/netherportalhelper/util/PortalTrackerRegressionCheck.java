@@ -107,6 +107,15 @@ public final class PortalTrackerRegressionCheck {
         for (int width : widths) {
             for (int height : heights) {
                 SettingsScreenLayout.Layout layout = SettingsScreenLayout.calculate(width, height);
+                var panels = SettingsScreenLayout.previewPanels(layout);
+                if (layout.previewVisible()) {
+                    assert panels.detailX() >= layout.previewX() : panels;
+                    assert panels.detailY() >= layout.previewCanvasY() : panels;
+                    assert panels.detailX() + panels.detailWidth() <= panels.overviewX() : panels;
+                    assert panels.overviewX() + panels.overviewWidth() <= layout.previewX() + layout.previewWidth() : panels;
+                    assert panels.overviewY() + panels.overviewHeight() <= layout.previewBottom() : panels;
+                    assert panels.detailY() + panels.detailHeight() <= layout.previewBottom() : panels;
+                }
                 assert layout.tabLeft() >= 0 : layout;
                 assert layout.tabLeft() + layout.tabWidth() * 2 + layout.tabGap() <= width : layout;
                 assert layout.footerY() > layout.controlBottom() : layout;

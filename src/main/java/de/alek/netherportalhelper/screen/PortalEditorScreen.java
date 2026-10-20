@@ -61,6 +61,9 @@ final class PortalEditorScreen extends Screen implements PortalMenuScreen {
 
     @Override
     protected void init() {
+        String focusedDraft = nameInput != null && nameInput.isFocused() ? "name"
+                : sourceInput != null && sourceInput.isFocused() ? "source"
+                : heightInput != null && heightInput.isFocused() ? "height" : null;
         bodyWidgets.clear();
         labels.clear();
         contentWidth = Math.min(600, Math.max(1, width - 48));
@@ -93,6 +96,9 @@ final class PortalEditorScreen extends Screen implements PortalMenuScreen {
         current.active = existing == null && minecraft.player != null && minecraft.level != null
                 && PortalTracker.isPortalDimension(minecraft.level.dimension());
         int buildLabelY = wrappedLabel("portal_reference_help", TOP + 105) + 10;
+        if (existing != null && existing.hasObservedDestination()) {
+            buildLabelY = wrappedLabel("recorded_edit_help", buildLabelY) + 8;
+        }
         label("build_y", buildLabelY, 0xFFCCCCCC);
         heightInput = input("build_y", buildLabelY + 12, half, 8, heightDraft);
         heightInput.setHint(text("reference_hint"));
@@ -118,7 +124,9 @@ final class PortalEditorScreen extends Screen implements PortalMenuScreen {
         updateScroll();
         button("cancel", left, height - 40, half, this::onClose);
         button("save", left + half + 4, height - 40, contentWidth - half - 4, this::save);
-        EditBox initial = nameDraft.isBlank() ? nameInput : existing == null ? sourceInput : heightInput;
+        EditBox initial = "name".equals(focusedDraft) ? nameInput : "source".equals(focusedDraft) ? sourceInput
+                : "height".equals(focusedDraft) ? heightInput
+                : nameDraft.isBlank() ? nameInput : existing == null ? sourceInput : heightInput;
         if (!initial.visible) {
             scrollOffset += initial.getY() < TOP ? initial.getY() - TOP
                     : Math.max(0, initial.getBottom() - bodyBottom);
@@ -197,8 +205,11 @@ final class PortalEditorScreen extends Screen implements PortalMenuScreen {
                 PortalCoordinates.Input input = PortalCoordinates.parse(sourceDraft);
                 Set<UUID> previousIds = PortalManager.targets().stream().map(PortalTarget::id).collect(Collectors.toSet());
                 PortalManager.add(nameDraft.strip(), input.source(), input.sourceDimension(), buildY, axis);
-                PortalManager.targets().stream().filter(target -> !previousIds.contains(target.id())).findFirst()
-                        .ifPresent(target -> parent.reveal(target.id()));
+                PortalTarget added = PortalManager.activeTarget();
+                if (added != null) {
+                    parent.reveal(added.id());
+                    if (previousIds.contains(added.id())) parent.showMessage("add_duplicate");
+                }
             } else {
                 PortalManager.update(existing.id(), nameDraft.strip(), buildY, axis);
             }
@@ -231,7 +242,7 @@ final class PortalEditorScreen extends Screen implements PortalMenuScreen {
             BlockPos reference = PortalTracker.calculateCounterpartPosition(input.source(), input.sourceDimension());
             Integer buildY = buildY();
             BlockPos destination = buildY == null ? reference : new BlockPos(reference.getX(), buildY, reference.getZ());
-            graphics.text(font, text("destination", PortalScreen.coordinates(
+            graphics.text(font, text("planned_counterpart", PortalScreen.coordinates(
                     PortalTracker.getCounterpartDimension(input.sourceDimension()), destination)), left, previewY - scrollOffset, 0xFF88EEAA);
             graphics.text(font, text("reference", reference.getY(), axis.name()), left, previewY + 13 - scrollOffset, 0xFFAAAAAA);
         } catch (IllegalArgumentException ignored) {

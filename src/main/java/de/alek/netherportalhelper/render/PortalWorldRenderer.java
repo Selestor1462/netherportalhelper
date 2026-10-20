@@ -27,8 +27,8 @@ public final class PortalWorldRenderer {
     private static final double MARKER_DISTANCE_SQUARED = 256.0 * 256.0;
     private static final double FRAME_DISTANCE_SQUARED = 48.0 * 48.0;
     private static final RenderStateDataKey<Preview> PREVIEW = RenderStateDataKey.create();
-    private static final GizmoStyle MARKER_STYLE = GizmoStyle.strokeAndFill(0xDC61E7F5, 2.0f, 0x1461E7F5);
-    private static final GizmoStyle FRAME_STYLE = GizmoStyle.strokeAndFill(0xB8B999F5, 1.2f, 0x20B999F5);
+    private static final GizmoStyle MARKER_STYLE = GizmoStyle.strokeAndFill(0xFF44E8FF, 3.0f, 0x2844E8FF);
+    private static final GizmoStyle FRAME_STYLE = GizmoStyle.strokeAndFill(0xFFE0ABFF, 2.2f, 0x0CE0ABFF);
 
     private PortalWorldRenderer() { }
 
@@ -47,15 +47,16 @@ public final class PortalWorldRenderer {
 
         PortalTarget target = PortalTracker.getTarget();
         ClientLevel level = context.level();
-        if (target == null || level == null || !level.dimension().equals(target.destinationDimension())) return;
-        BlockPos destination = target.destination();
+        if (target == null || level == null || !level.dimension().equals(PortalTracker.getTargetDimension())) return;
+        BlockPos destination = PortalTracker.getTargetPos();
         if (!canPreview(level, destination)) return;
 
         double distanceSquared = context.levelState().cameraRenderState.pos.distanceToSqr(Vec3.atCenterOf(destination));
         if (distanceSquared > MARKER_DISTANCE_SQUARED) return;
         BlockPos marker = config.showTargetMarker ? destination.immutable() : null;
         List<BlockPos> frame = List.of();
-        if (config.showFramePreview && distanceSquared <= FRAME_DISTANCE_SQUARED) {
+        if (config.showFramePreview && !PortalTracker.isReturning() && !target.hasObservedDestination()
+                && distanceSquared <= FRAME_DISTANCE_SQUARED) {
             // A partial frame could suggest an impossible build, so suppress the whole guide.
             frame = PortalWorldAccess.frameIfValid(destination, target.axis(), block -> canPreview(level, block));
         }

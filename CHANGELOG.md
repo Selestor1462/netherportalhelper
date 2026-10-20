@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.0 — Complete portal journey
+
+- Made capture/select a consistent action on P; repeated capture selects the existing source or recorded counterpart without creating duplicates. Navigation can be stopped in the planner or through an optional key binding.
+- Added explicit planned, counterpart-recorded, and manually tested states. Record an aimed built portal, navigate to either endpoint, and retain the original building reference.
+- Saved actual counterpart coordinates, tested state and navigation direction in version 3 libraries, migrating version 1 and 2 data without claiming old connections are tested.
+- Added transactional deletion undo, preserving newer edits and resolving endpoint collisions without duplicating routes.
+- Separated selected-pair actions from named active-navigation guides, added explicit source/counterpart copy actions, and hid single-page pagination.
+- Added readable HUD/compass detail previews with a separate placement overview, selected settings tabs, and exact numeric entry beside sliders.
+- Stabilized compass width, shortened height guidance, clarified dimension changes and building steps, and strengthened frame/anchor outlines.
+- Extended migration, direction, duplication, undo, failure and preview geometry regressions; translated all controls into the seven included languages.
+
 ## 1.4.1 — HUD and planner clarity
 
 - Kept the compass arrow inside a rotation-safe area and reserved a stable row for the turn-around hint.

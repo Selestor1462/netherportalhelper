@@ -32,8 +32,6 @@ public final class ConfigScreen extends Screen implements PortalMenuScreen {
     private int visibleRows;
     private int previewTop;
     private int previewBottom;
-    private int previewCanvasY;
-    private int previewCanvasHeight;
     private boolean previewVisible;
     private boolean sideBySide;
     private boolean stackedFooter;
@@ -42,6 +40,7 @@ public final class ConfigScreen extends Screen implements PortalMenuScreen {
     private int controlRight;
     private int columnWidth;
     private int scrollbarX;
+    private SettingsScreenLayout.PreviewPanels previewPanels;
     private PreviewScene.Scenario previewScenario = PreviewScene.Scenario.TRAVELLING;
 
     public ConfigScreen(Screen parent) {
@@ -64,12 +63,14 @@ public final class ConfigScreen extends Screen implements PortalMenuScreen {
         titleY = layout.titleY();
         tabHeight = layout.tabHeight();
         int tabWidth = layout.tabWidth();
-        addRenderableWidget(Button.builder(Component.translatable("config.netherportalhelper.hud"),
+        Button hudTab = addRenderableWidget(Button.builder(Component.translatable("config.netherportalhelper.hud"),
                         button -> openPage(Page.HUD))
                 .bounds(layout.tabLeft(), layout.tabY(), tabWidth, tabHeight).build());
-        addRenderableWidget(Button.builder(Component.translatable("config.netherportalhelper.compass"),
+        Button compassTab = addRenderableWidget(Button.builder(Component.translatable("config.netherportalhelper.compass"),
                         button -> openPage(Page.COMPASS))
                 .bounds(layout.tabLeft() + tabWidth + layout.tabGap(), layout.tabY(), tabWidth, tabHeight).build());
+        hudTab.active = page != Page.HUD;
+        compassTab.active = page != Page.COMPASS;
         addRenderableWidget(Button.builder(Component.translatable("planner.netherportalhelper.title"),
                         button -> Minecraft.getInstance().gui.setScreen(new PortalScreen(this)))
                 .bounds(layout.tabLeft() + (tabWidth + layout.tabGap()) * 2, layout.tabY(), tabWidth, tabHeight).build());
@@ -79,10 +80,9 @@ public final class ConfigScreen extends Screen implements PortalMenuScreen {
         previewWidth = layout.previewWidth();
         previewTop = layout.previewTop();
         previewBottom = layout.previewBottom();
-        previewCanvasY = layout.previewCanvasY();
-        previewCanvasHeight = layout.previewCanvasHeight();
         previewVisible = layout.previewVisible();
-        if (previewVisible) {
+        previewPanels = SettingsScreenLayout.previewPanels(layout);
+        if (previewVisible && page == Page.COMPASS) {
             int scenarioWidth = Math.min(170, previewWidth / 2);
             addRenderableWidget(Button.builder(Component.translatable(previewScenario.translationKey()), button -> {
                 previewScenario = previewScenario.next();
@@ -152,9 +152,9 @@ public final class ConfigScreen extends Screen implements PortalMenuScreen {
                 addAnchor(left + cellWidth + columnGap, y, cellWidth, rowHeight);
             }
             case 1 -> {
-                addSlider(left, y, cellWidth, rowHeight, "config.netherportalhelper.offset_x",
+                addIntegerSlider(left, y, cellWidth, rowHeight, "config.netherportalhelper.offset_x",
                         draft.hudPanelX, 0, 100, 0, " px", value -> draft.hudPanelX = (int) Math.round(value));
-                addSlider(left + cellWidth + columnGap, y, cellWidth, rowHeight, "config.netherportalhelper.offset_y",
+                addIntegerSlider(left + cellWidth + columnGap, y, cellWidth, rowHeight, "config.netherportalhelper.offset_y",
                         draft.hudPanelY, 0, 100, 0, " px", value -> draft.hudPanelY = (int) Math.round(value));
             }
             case 2 -> {
@@ -177,7 +177,7 @@ public final class ConfigScreen extends Screen implements PortalMenuScreen {
     private void addCompassRow(int row, int left, int y, int cellWidth, int rowHeight) {
         switch (row) {
             case 0 -> {
-                addSlider(left, y, cellWidth, rowHeight, "config.netherportalhelper.compass_y",
+                addIntegerSlider(left, y, cellWidth, rowHeight, "config.netherportalhelper.compass_y",
                         draft.compassCenterY, 20, 400, 0, " px", value -> draft.compassCenterY = (int) Math.round(value));
                 addSlider(left + cellWidth + columnGap, y, cellWidth, rowHeight,
                         "config.netherportalhelper.arrow_scale", draft.compassArrowScale, 1.0, 6.0, 1, "×",
@@ -238,11 +238,30 @@ public final class ConfigScreen extends Screen implements PortalMenuScreen {
     private void addSlider(int x, int y, int cellWidth, int rowHeight, String labelKey,
                            double value, double min, double max, int decimals, String suffix,
                            DoubleConsumer setter) {
+        addSlider(x, y, cellWidth, rowHeight, labelKey, value, min, max, decimals, suffix, false, setter);
+    }
+
+    private void addIntegerSlider(int x, int y, int cellWidth, int rowHeight, String labelKey,
+                                  double value, double min, double max, int decimals, String suffix,
+                                  DoubleConsumer setter) {
+        addSlider(x, y, cellWidth, rowHeight, labelKey, value, min, max, decimals, suffix, true, setter);
+    }
+
+    private void addSlider(int x, int y, int cellWidth, int rowHeight, String labelKey,
+                           double value, double min, double max, int decimals, String suffix,
+                           boolean integer, DoubleConsumer setter) {
         addLabel(x, y, cellWidth, labelKey);
         int sliderY = y + sliderOffset(rowHeight);
         int sliderHeight = widgetHeight(rowHeight);
-        addRenderableWidget(new ValueSlider(x, sliderY, cellWidth, sliderHeight, value, min, max,
-                decimals, suffix, setter));
+        int exactWidth = Math.min(22, Math.max(12, cellWidth / 5));
+        ValueSlider slider = addRenderableWidget(new ValueSlider(x, sliderY,
+                Math.max(1, cellWidth - exactWidth - 3), sliderHeight, value, min, max, decimals, suffix, setter));
+        addRenderableWidget(Button.builder(Component.literal("…"), button ->
+                        Minecraft.getInstance().gui.setScreen(new ExactValueScreen(this,
+                                Component.translatable(labelKey), slider.currentValue(), min, max, integer,
+                                suffix, setter)))
+                .bounds(x + cellWidth - exactWidth, sliderY, exactWidth, sliderHeight)
+                .tooltip(Tooltip.create(Component.translatable("config.netherportalhelper.exact_value"))).build());
     }
 
     private void addLabel(int x, int y, int cellWidth, String labelKey) {
@@ -351,10 +370,22 @@ public final class ConfigScreen extends Screen implements PortalMenuScreen {
                 Math.max(1, width - 16), 0xFFFFFFFF);
         labels.forEach(label -> drawFittedLabel(graphics, font, label));
         if (previewVisible) {
-            graphics.text(font, Component.translatable("config.netherportalhelper.preview"),
-                    previewX + 4, previewTop + 2, 0xFFB5B5B5, false);
-            HUDOverlay.renderPreview(graphics, font, draft, previewX + 1, previewCanvasY,
-                    Math.max(0, previewWidth - 2), previewCanvasHeight, previewScenario);
+            int titleWidth = Math.max(1, previewWidth - (page == Page.COMPASS ? Math.min(170, previewWidth / 2) + 12 : 8));
+            drawFittedLabel(graphics, font, new Label(previewX + 4, previewTop + 2, titleWidth,
+                    Component.translatable(page == Page.COMPASS
+                            ? "config.netherportalhelper.preview_compass_detail"
+                            : "config.netherportalhelper.preview_hud_detail")));
+            HUDOverlay.renderDetailPreview(graphics, font, draft, previewPanels.detailX(), previewPanels.detailY(),
+                    previewPanels.detailWidth(), previewPanels.detailHeight(), previewScenario, page == Page.COMPASS);
+            if (previewPanels.overviewWidth() > 0 && previewPanels.overviewHeight() > 0) {
+                drawFittedLabel(graphics, font, new Label(previewPanels.overviewX(), previewPanels.overviewLabelY(),
+                        previewPanels.overviewWidth(), Component.translatable("config.netherportalhelper.preview_overview")));
+                graphics.fill(previewPanels.overviewX() - 1, previewPanels.overviewY() - 1,
+                        previewPanels.overviewX() + previewPanels.overviewWidth() + 1,
+                        previewPanels.overviewY() + previewPanels.overviewHeight() + 1, 0xFF555555);
+                HUDOverlay.renderPreview(graphics, font, draft, previewPanels.overviewX(), previewPanels.overviewY(),
+                        previewPanels.overviewWidth(), previewPanels.overviewHeight(), previewScenario);
+            }
         } else if (messageKey == null) {
             drawCenteredFitted(graphics, font,
                     Component.translatable("config.netherportalhelper.preview_resize"),
@@ -432,13 +463,17 @@ public final class ConfigScreen extends Screen implements PortalMenuScreen {
 
         @Override
         protected void updateMessage() {
-            double current = min + (max - min) * value;
+            double current = currentValue();
             setMessage(Component.literal(String.format(Locale.ROOT, "%1$." + decimals + "f%2$s", current, suffix)));
         }
 
         @Override
         protected void applyValue() {
-            setter.accept(min + (max - min) * value);
+            setter.accept(currentValue());
+        }
+
+        private double currentValue() {
+            return min + (max - min) * value;
         }
     }
 }

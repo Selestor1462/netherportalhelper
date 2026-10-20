@@ -12,6 +12,7 @@ import java.util.Arrays;
 
 public final class PortalManagerRegressionCheck {
     public static void run() throws Exception {
+        PortalJourneyRegressionCheck.run();
         var directory = Files.createTempDirectory("portal-manager-");
         var file = directory.resolve("targets.json");
         String scope = TargetStore.serverKey("planner.test");
@@ -24,6 +25,10 @@ public final class PortalManagerRegressionCheck {
             var farm = PortalManager.activeTarget();
             assert farm.name().equals("Farm");
             var base = PortalManager.targets().getFirst();
+            PortalManager.add("Duplicate must preserve metadata", new BlockPos(120, 70, -48),
+                    Level.OVERWORLD, 20, Direction.Axis.Z);
+            assert PortalManager.targets().size() == 2 : "Capturing the same source must select its saved route";
+            assert PortalManager.activeTarget().equals(base) : "Recapture must preserve name and build choices";
             PortalManager.update(base.id(), "Home", 130, Direction.Axis.Z);
             PortalManager.select(base.id());
             assert PortalTracker.getTargetPos().equals(new BlockPos(15, 130, -6));
@@ -55,6 +60,18 @@ public final class PortalManagerRegressionCheck {
                     } catch (IOException expected) { }
                     assert Files.readString(file).equals(original);
                     assert PortalManager.activeTarget().equals(previous);
+                    try {
+                        PortalManager.delete(base.id());
+                        throw new AssertionError("Failed deletion must not replace the undo snapshot");
+                    } catch (IOException expected) { }
+                    assert PortalManager.activeTarget().equals(previous) && PortalManager.canUndoDelete();
+                    try {
+                        PortalManager.undoDelete();
+                        throw new AssertionError("Locked file must reject undo atomically");
+                    } catch (IOException expected) { }
+                    assert PortalManager.canUndoDelete() && PortalManager.targets().size() == 1;
+                    assert PortalManager.activeTarget().equals(previous);
+                    assert Files.readString(file).equals(original);
                 }
                 try (var remaining = Files.list(directory)) {
                     assert remaining.count() == 1 : "Failed replacement must remove its temporary file";

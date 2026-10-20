@@ -83,11 +83,12 @@ public final class TargetStore {
 
     private void writeLibraries(Map<String, Library> libraries) throws IOException {
         JsonObject document = new JsonObject();
-        document.addProperty("version", 2);
+        document.addProperty("version", 3);
         JsonObject scopes = new JsonObject();
         for (Map.Entry<String, Library> entry : libraries.entrySet()) {
             JsonObject library = new JsonObject();
             if (entry.getValue().activeId() != null) library.addProperty("activeId", entry.getValue().activeId().toString());
+            library.addProperty("returning", entry.getValue().returning());
             JsonArray targets = new JsonArray();
             for (PortalTarget target : entry.getValue().targets()) {
                 JsonObject saved = new JsonObject();
@@ -97,6 +98,8 @@ public final class TargetStore {
                 saved.add("calculatedDestination", point(target.calculatedDestination(), target.destinationDimension()));
                 if (target.buildY() != null) saved.addProperty("buildY", target.buildY());
                 saved.addProperty("axis", target.axis().name());
+                if (target.hasObservedDestination()) saved.add("observedDestination", point(target.observedDestination(), target.destinationDimension()));
+                saved.addProperty("linkVerified", target.linkVerified());
                 targets.add(saved);
             }
             library.add("targets", targets);
@@ -122,7 +125,7 @@ public final class TargetStore {
         try {
             JsonObject document = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), JsonObject.class);
             int version = integer(document, "version");
-            if ((version != 1 && version != 2) || !document.get("targets").isJsonObject()) {
+            if ((version != 1 && version != 2 && version != 3) || !document.get("targets").isJsonObject()) {
                 throw new IllegalArgumentException("Unsupported portal target file");
             }
             Map<String, Library> libraries = new LinkedHashMap<>();
@@ -147,13 +150,21 @@ public final class TargetStore {
                         requireCounterpart(sourceDimension, dimension(destination));
                         Integer buildY = target.has("buildY") && !target.get("buildY").isJsonNull()
                                 ? integer(target, "buildY") : null;
+                        BlockPos observed = null;
+                        if (version >= 3 && target.has("observedDestination") && !target.get("observedDestination").isJsonNull()) {
+                            JsonObject observedPoint = target.getAsJsonObject("observedDestination");
+                            requireCounterpart(sourceDimension, dimension(observedPoint));
+                            observed = position(observedPoint);
+                        }
                         targets.add(new PortalTarget(UUID.fromString(string(target, "id")), string(target, "name"),
                                 position(source), sourceDimension, position(destination), buildY,
-                                Direction.Axis.valueOf(string(target, "axis"))));
+                                Direction.Axis.valueOf(string(target, "axis")), observed,
+                                version >= 3 && target.has("linkVerified") && bool(target, "linkVerified")));
                     }
                     UUID activeId = saved.has("activeId") && !saved.get("activeId").isJsonNull()
                             ? UUID.fromString(string(saved, "activeId")) : null;
-                    libraries.put(entry.getKey(), new Library(targets, activeId));
+                    libraries.put(entry.getKey(), new Library(targets, activeId,
+                            version >= 3 && saved.has("returning") && bool(saved, "returning")));
                 }
             }
             return libraries;
@@ -203,7 +214,13 @@ public final class TargetStore {
         return value.getAsString();
     }
 
-    public record Library(List<PortalTarget> targets, UUID activeId) {
+    private static boolean bool(JsonObject object, String key) {
+        var value = object.getAsJsonPrimitive(key);
+        if (!value.isBoolean()) throw new IllegalArgumentException("Expected boolean for " + key);
+        return value.getAsBoolean();
+    }
+
+    public record Library(List<PortalTarget> targets, UUID activeId, boolean returning) {
         public Library {
             if (targets == null || targets.stream().anyMatch(target -> target == null)) {
                 throw new IllegalArgumentException("Portal targets are required");
@@ -214,7 +231,10 @@ public final class TargetStore {
                 if (!ids.add(target.id())) throw new IllegalArgumentException("Duplicate portal identity");
             }
             if (activeId != null && !ids.contains(activeId)) throw new IllegalArgumentException("Active portal must exist in the library");
+            if (activeId == null) returning = false;
         }
+
+        public Library(List<PortalTarget> targets, UUID activeId) { this(targets, activeId, false); }
 
         public static Library empty() {
             return new Library(List.of(), null);

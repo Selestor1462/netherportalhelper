@@ -9,21 +9,29 @@ public class PortalTracker {
     private static BlockPos targetPos = null;
     private static ResourceKey<Level> targetDimension = null;
     private static PortalTarget target = null;
+    private static boolean returning = false;
 
     public static PortalTarget getTarget() {
         return target;
     }
 
     public static void setTarget(PortalTarget selected) {
+        setTarget(selected, false);
+    }
+
+    public static void setTarget(PortalTarget selected, boolean returnToSource) {
         if (selected == null) {
             clear();
             return;
         }
         target = selected;
-        targetPos = selected.destination();
-        targetDimension = selected.destinationDimension();
+        returning = returnToSource;
+        targetPos = returning ? selected.source() : selected.destination();
+        targetDimension = returning ? selected.sourceDimension() : selected.destinationDimension();
         active = true;
     }
+
+    public static boolean isReturning() { return returning; }
 
     public static boolean isActive() {
         return active;
@@ -78,6 +86,7 @@ public class PortalTracker {
         }
         active = true;
         target = null;
+        returning = false;
         targetPos = calculatedTarget.immutable();
         targetDimension = calculatedDimension;
         return true;
@@ -88,6 +97,7 @@ public class PortalTracker {
         targetPos = null;
         targetDimension = null;
         target = null;
+        returning = false;
     }
 
     public static void toggleFreeze(BlockPos calculatedTarget, ResourceKey<Level> calculatedDimension) {
