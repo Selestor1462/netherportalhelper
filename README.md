@@ -4,9 +4,9 @@ A client-side Fabric mod that calculates the matching Nether and Overworld coord
 
 ## Requirements
 
-- Minecraft Java Edition 26.2
-- Fabric Loader 0.19.5 or later
-- Fabric API 0.161.0 or later for Minecraft 26.2
+- Minecraft Java Edition 26.3
+- Fabric Loader 0.20.1 or later
+- Fabric API 0.165.2 or later for Minecraft 26.3
 - Java 25 or later
 
 ## Controls

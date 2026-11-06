@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.1 — Minecraft 26.3
+
+- Updated Minecraft, Fabric Loader, and Fabric API for Minecraft 26.3.
+- Adapted key mapping definitions for Minecraft 26.3 input system.
+
 ## 1.3.0 — Portal bookmarks
 
 - Added world- and server-scoped portal bookmarks with separate Overworld and Nether coordinates.

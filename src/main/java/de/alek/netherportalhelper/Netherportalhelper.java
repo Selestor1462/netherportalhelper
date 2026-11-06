@@ -19,7 +19,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
-import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,20 +43,17 @@ public class Netherportalhelper implements ClientModInitializer {
 
             freezeKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.netherportalhelper.freeze",
-                    InputConstants.Type.KEYSYM,
-                    GLFW.GLFW_KEY_P,
+                    InputConstants.KEY_P,
                     KEY_CATEGORY
             ));
             toggleKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.netherportalhelper.toggle",
-                    InputConstants.Type.KEYSYM,
-                    GLFW.GLFW_KEY_F6,
+                    InputConstants.KEY_F6,
                     KEY_CATEGORY
             ));
             bookmarksKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.netherportalhelper.bookmarks",
-                    InputConstants.Type.KEYSYM,
-                    GLFW.GLFW_KEY_B,
+                    InputConstants.KEY_B,
                     KEY_CATEGORY
             ));
 
